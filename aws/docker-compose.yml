@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecat_db
+    environment:
+      POSTGRES_DB: ecat_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+      - ../database/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql
+
+  ml_service:
+    build:
+      context: ../ml_service
+      dockerfile: ../aws/Dockerfile.ml
+    container_name: ecat_ml
+    ports:
+      - "5001:5001"
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../aws/Dockerfile.backend
+    container_name: ecat_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=ecat_db
+      - PGUSER=postgres
+      - PGPASSWORD=postgrespassword
+      - JWT_SECRET=ecat_aws_production_jwt_secret_2026
+      - ML_SERVICE_URL=http://ml_service:5001
+    depends_on:
+      - postgres
+      - ml_service
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../aws/Dockerfile.frontend
+    container_name: ecat_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
